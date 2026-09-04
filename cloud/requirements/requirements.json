@@ -1,0 +1,114 @@
+{
+  "name": "POLP",
+  "description": "All the requirements for the principle of least privilege",
+  "rules": [
+    {
+      "name": "S3 bucket naming prefix",
+      "resource": "AWS::S3::Bucket",
+      "actions": [
+        {
+          "when": {
+            "property": "BucketName",
+            "operator": "starts with any of",
+            "value": [
+              "qar",
+              "nexus"
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "Bucket does not respect the naming prefix rule."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Security Group piggybacking across context boundaries",
+      "resource": "AWS::EC2::SecurityGroup",
+      "actions": [
+        {
+          "when": {
+            "all": [
+              {
+                "property": "resourceName",
+                "operator": "contains",
+                "value": "Redshift"
+              },
+              {
+                "property": "GroupDescription",
+                "operator": "not contains",
+                "value": "Redshift"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Security Groups used for Redshift must be explicitly named and described as Redshift Security Groups. If the Security Group logical name contains 'Redshift', the Security Group description must also contain 'Redshift'. This avoids piggybacking and makes context boundaries clear."
+            }
+          }
+        },
+        {
+          "when": {
+            "all": [
+              {
+                "property": "resourceName",
+                "operator": "contains",
+                "value": "Aurora"
+              },
+              {
+                "property": "GroupDescription",
+                "operator": "not contains",
+                "value": "Aurora"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Security Groups used for Aurora must be explicitly named and described as Aurora Security Groups. If the Security Group logical name contains 'Aurora', the Security Group description must also contain 'Aurora'. This avoids piggybacking and makes context boundaries clear."
+            }
+          }
+        },
+        {
+          "when": {
+            "all": [
+              {
+                "property": "resourceName",
+                "operator": "contains",
+                "value": "Warden"
+              },
+              {
+                "property": "GroupDescription",
+                "operator": "not contains",
+                "value": "Warden"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Security Groups used for Aurora must be explicitly named and described as Aurora Security Groups. If the Security Group logical name contains 'Aurora', the Security Group description must also contain 'Aurora'. This avoids piggybacking and makes context boundaries clear."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lambda execution roles must not be shared across services",
+      "resource": "AWS::Lambda::Function",
+      "actions": [
+        {
+          "when": {
+            "property": "Role",
+            "operator": "exists",
+            "value": ""
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: IAM Roles and policies must follow least privilege. A Lambda execution role should allow only the actions required by the Lambda function and only on the specific target resources it needs. Roles should never be shared across services. Maintaining Least Privilege with roles that do too many things for too many purposes is impossible. Review and create dedicated IAM roles for Lambda functions so each Lambda has only the required access to the resources it needs, instead of broad access to all Nexus-related DynamoDB tables, S3 buckets, or other shared resources."
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

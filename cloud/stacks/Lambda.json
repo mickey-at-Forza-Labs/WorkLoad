@@ -1,0 +1,270 @@
+{
+  "name": "lambda",
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Transform": "AWS::Serverless-2016-10-31",
+  "Description": "Lambdas Template \n",
+    "Conditions":{},
+    "Mappings" : {},
+  "Injections": [
+    {
+      "LambdaConfiguration": {
+        "lambdaPath": "./apps/backend/src/functions",
+        "projectPath": "./",
+        "overwritePath": "../../backend/src/functions/",
+        "globalLamdaSettings": {
+          "gateway": "qarApiGateway",
+          "securityGroupId": "nexusSecurityGroupId"
+        },
+        "LamdaSettings": [
+          {
+            "name": "qarWardenGetLoginURL",
+            "propertySettings": [
+              {
+                "property": {
+                  "propertyName": "Properties.Auth.Authorizer",
+                  "propertyValue": "NONE"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "LambdaRole": [
+        {
+          "lambdas": "*",
+          "role": {
+            "Fn::GetAtt": "NascoNGPLambdasExecutor.Arn"
+          }
+        }
+      ],
+      "injectionType": "lambda",
+      "baseTemplate":{"${{function-name}}": {
+        "Type": "AWS::Serverless::Function",
+        "Properties": {
+          "FunctionName": "${{function-name}}",
+          "CodeUri": "${{path}}",
+          "Handler": "${{function-name}}.lambdaHandler",
+          "Runtime": "nodejs22.x",
+          "Role": {
+            "Fn::GetAtt": "${{role}}"
+          },
+          "Events": {
+            "${{function-name}}PostEvent": {
+              "Type": "Api",
+              "Properties": {
+                "Path": "/${{function-name}}/{proxy+}",
+                "Method": "POST",
+                "RestApiId": {
+                  "Ref": "${{ApiGateway}}"
+                },
+                "Auth": {
+                  "Authorizer": "CognitoAuthorizer"
+                }
+              }
+            }
+          },
+          "Architectures": [
+            "arm64"
+          ],
+          "Timeout": 29,
+          "MemorySize": 512,
+          "VpcConfig": {
+            "Ipv6AllowedForDualStack": false,
+            "SubnetIds": {
+              "Ref": "Subnets"
+            },
+            "SecurityGroupIds": [
+              {
+                "Fn::ImportValue": "${{securityGroupId}}"
+              }
+            ]
+          }
+        },
+        "Metadata": {
+          "BuildMethod": "esbuild",
+          "BuildProperties": {
+            "Minify": true,
+            "Target": "es2020",
+            "Sourcemap": true,
+            "EntryPoints": [
+              "${{function-name}}.ts"
+            ]
+          }
+        }
+      }}
+    }
+  ],
+  "Parameters": {
+    "Subnets": {
+      "Description": "Subnets",
+      "Type": "AWS::SSM::Parameter::Value<List<AWS::EC2::Subnet::Id>>",
+      "Default": "/network/vpc/primary/subnets"
+    },
+    "VpcId": {
+      "Description": "VPC for Lambdas",
+      "Type": "AWS::SSM::Parameter::Value<AWS::EC2::VPC::Id>",
+      "Default": "/network/vpc/primary/id"
+    },
+    "APIGWVpcEndpointId": {
+      "Description": "VPC Endpoint for APIGW",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+      "Default": "/network/vpc/primary/endpoints/execute-api"
+    }
+  },
+  "Resources": {
+    "qarApiGateway": {
+      "Type": "AWS::Serverless::Api",
+      "Properties": {
+        "Name": "qar-api-gateway",
+        "StageName": "stage",
+        "OpenApiVersion": "2.0",
+        "Cors": {
+          "AllowHeaders": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Requested-With,Access-Control-Allow-Methods,Access-Control-Allow-Origin,Access-Control-Allow-Headers,X-Amz-Security-Token,x-apigw-api-id'",
+          "AllowMethods": "'POST,GET,OPTIONS'",
+          "AllowOrigin": "'*'"
+        },
+        "AccessLogSetting": {
+          "DestinationArn": {
+            "Fn::GetAtt": "qarApiGatewayLogGroup.Arn"
+          },
+          "Format": "$context.identity.sourceIp $context.identity.caller $context.identity.user [$context.requestTime]\"$context.httpMethod $context.resourcePath $context.protocol\" $context.status $context.responseLength $context.requestId $context.extendedRequestId"
+        },
+        "MethodSettings": [
+          {
+            "LoggingLevel": "INFO",
+            "MetricsEnabled": true,
+            "DataTraceEnabled": true,
+            "ResourcePath": "/*",
+            "HttpMethod": "*",
+            "ThrottlingBurstLimit": 100,
+            "ThrottlingRateLimit": 50
+          }
+        ],
+        "Auth": {
+          "DefaultAuthorizer": "CognitoAuthorizer",
+          "AddDefaultAuthorizerToCorsPreflight": false,
+          "ResourcePolicy": {
+            "CustomStatements": [
+              {
+                "Effect": "Allow",
+                "Action": "execute-api:Invoke",
+                "Resource": "execute-api:/*",
+                "Principal": "*",
+                "Condition": {
+                  "StringEquals": {
+                    "aws:SourceVpce": {
+                      "Ref": "APIGWVpcEndpointId"
+                    }
+                  }
+                }
+              },
+              {
+                "Effect": "Deny",
+                "Action": "execute-api:Invoke",
+                "Resource": "execute-api:/*",
+                "Principal": "*",
+                "Condition": {
+                  "StringNotEquals": {
+                    "aws:SourceVpce": {
+                      "Ref": "APIGWVpcEndpointId"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "Authorizers": {
+            "CognitoAuthorizer": {
+              "UserPoolArn": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:aws:cognito-idp:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":userpool/",
+                    {
+                      "Fn::ImportValue": "qarUserPoolId"
+                    }
+                  ]
+                ]
+              },
+              "Identity": {
+                "Header": "Authorization"
+              }
+            }
+          }
+        },
+        "GatewayResponses": {
+          "UNAUTHORIZED": {
+            "StatusCode": "401",
+            "ResponseParameters": {
+              "Headers": {
+                "Access-Control-Allow-Origin": "'*'",
+                "Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                "Access-Control-Allow-Methods": "'OPTIONS,POST,GET'"
+              }
+            },
+            "ResponseTemplates": {
+              "application/json": "{\"message\": \"Unauthorized access\"}"
+            }
+          }
+        },
+        "EndpointConfiguration": {
+          "Type": "PRIVATE",
+          "VpcEndpointIds": [
+            {
+              "Ref": "APIGWVpcEndpointId"
+            }
+          ]
+        }
+      }
+    },
+    "qarApiGatewayLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/apigw/${qarApiGateway}-runtime"
+        },
+        "RetentionInDays": 90
+      }
+    },
+    "qarNexusApiHighRequestRateAlarm": {
+      "Condition": "prodAccount",
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "High nexus-API request rate warning",
+        "Namespace": "AWS/ApiGateway",
+        "MetricName": "Count",
+        "Dimensions": [
+          {
+            "Name": "ApiName",
+            "Value": "qar-api-gateway"
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 2000,
+        "ComparisonOperator": "GreaterThanThreshold",
+        "AlarmActions": [
+          {
+            "Fn::ImportValue": "qarApiAlertsTopicArn"
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "ngpApiGatewayId": {
+      "Value": {
+        "Ref": "NGPApiGateway"
+      }
+    }
+  }
+}

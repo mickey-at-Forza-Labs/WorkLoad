@@ -1,0 +1,87 @@
+{
+  "name": "iam",
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Template to distribute resources and save outputs in the Parameter Store",
+    "Conditions":{},    "Parameters":{},
+    "Mappings" : {},
+
+  "Resources": {
+  },
+  "Injections": [ {
+    "injectionType": "iam",
+    "baseTemplate": {
+      "${{parsedRoleName}}": {
+        "Type": "AWS::IAM::Role",
+        "Properties": {
+          "RoleName": "${{roleName}}",
+          "Description": "Nasco QAR Lambda Role.",
+          "PermissionsBoundary": {
+            "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:policy/nasco/builder-permissions-boundary"
+          },
+          "ManagedPolicyArns": [],
+          "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": "lambda.amazonaws.com"
+                },
+                "Action": "sts:AssumeRole"
+              }
+            ]
+          },
+          "Policies": [
+            {
+              "PolicyName": "ExecuteLambdaPolicy",
+              "PolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "ssm:GetParameter"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "logs:CreateLogGroup",
+                      "logs:CreateLogStream",
+                      "logs:PutLogEvents",
+                      "ec2:CreateNetworkInterface",
+                      "ec2:DescribeNetworkInterfaces",
+                      "ec2:DescribeSubnets",
+                      "ec2:DeleteNetworkInterface",
+                      "ec2:AssignPrivateIpAddresses",
+                      "ec2:UnassignPrivateIpAddresses"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "cloudwatch:*"
+                    ],
+                    "Resource": "*"
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "sts:AssumeRole"
+                    ],
+                    "Resource": {
+                      "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/redshift-role-ngp"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }],
+  "Outputs": {}
+}

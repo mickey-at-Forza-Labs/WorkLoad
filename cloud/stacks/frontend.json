@@ -1,0 +1,477 @@
+{
+  "name": "frontend",
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Transform": "AWS::Serverless-2016-10-31",
+  "Description": "Quality and Risk Frontend Template",
+  "Conditions": {
+    "nonProdAccount": {
+      "Fn::Or": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "AWS::AccountId"
+            },
+            "${{devAccountId}}"
+          ]
+        },
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "AWS::AccountId"
+            },
+            "${{testAccountId}}"
+          ]
+        },
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "AWS::AccountId"
+            },
+            "${{uatAccountId}}"
+          ]
+        },
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "AWS::AccountId"
+            },
+            "${{demouatAccountId}}"
+          ]
+        }
+      ]
+    }
+  },
+  "Mappings": {
+    "configuration": {
+      "730335180919": {
+        "cloudEnvironment": "dev",
+        "NLBElasticIps": "arn:aws:ssm:us-east-1:992382843260:parameter/network/elb/network-dev-nlb/eips"
+      },
+      "242201270467": {
+        "cloudEnvironment": "test",
+        "NLBElasticIps": "arn:aws:ssm:us-east-1:992382843260:parameter/network/elb/network-test-nlb/eips"
+      },
+      "667037895408": {
+        "cloudEnvironment": "uat-bcbsm",
+        "NLBElasticIps": "arn:aws:ssm:us-east-1:992382843260:parameter/network/elb/network-test-nlb/eips"
+      },
+      "872515256343": {
+        "cloudEnvironment": "uat-demo-bcbsm",
+        "NLBElasticIps": "arn:aws:ssm:us-east-1:992382843260:parameter/network/elb/network-uat-demo-nlb/eips"
+      },
+      "794038225525": {
+        "cloudEnvironment": "prod-demo",
+        "NLBElasticIps": "arn:aws:ssm:us-east-1:992382843260:parameter/network/elb/network-prod-demo-nlb/eips"
+      },
+      "002616177716": {
+        "cloudEnvironment": "prod-bcbsm",
+        "NLBElasticIps": "arn:aws:ssm:us-east-1:992382843260:parameter/network/elb/network-prod-bcbsm-nlb/eips"
+      }
+    }
+  },
+  "Parameters": {
+    "SubDomain": {
+      "Description": "qar Subdomain",
+      "Type": "String",
+      "Default": "vbc.qar"
+    },
+    "R53HostedZoneId": {
+      "Description": "Route53 hosted zone id",
+      "Type": "AWS::SSM::Parameter::Value<AWS::Route53::HostedZone::Id>",
+      "Default": "/dns/vbsp/public/zone-id"
+    },
+    "CloudFrontWafArn": {
+      "Description": "CloudFront WAF ARN",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+      "Default": "/waf/baseline/cloudfront"
+    },
+    "Subnets": {
+      "Description": "Subnets",
+      "Type": "AWS::SSM::Parameter::Value<List<AWS::EC2::Subnet::Id>>",
+      "Default": "/network/vpc/primary/subnets"
+    },
+    "VpcId": {
+      "Description": "VPC for Lambdas",
+      "Type": "AWS::SSM::Parameter::Value<AWS::EC2::VPC::Id>",
+      "Default": "/network/vpc/primary/id"
+    },
+    "qarApiSubDomain": {
+      "Description": "API Subdomain",
+      "Type": "String",
+      "Default": "qar"
+    },
+    "NascoDomain": {
+      "Description": "Domain name",
+      "Type": "String",
+      "Default": "vbsp.dev.nasco.com"
+    }
+  },
+  "Resources": {
+    "qarApiGateway": {
+      "Type": "AWS::Serverless::Api",
+      "Properties": {
+        "Name": "qar-api-gateway",
+        "StageName": "stage",
+        "OpenApiVersion": "2.0",
+        "Cors": {
+          "AllowHeaders": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Requested-With,Access-Control-Allow-Methods,Access-Control-Allow-Origin,Access-Control-Allow-Headers,X-Amz-Security-Token,x-apigw-api-id'",
+          "AllowMethods": "'POST,GET,OPTIONS'",
+          "AllowOrigin": "'*'"
+        },
+        "AccessLogSetting": {
+          "DestinationArn": {
+            "Fn::GetAtt": "qarApiGatewayLogGroup.Arn"
+          },
+          "Format": "$context.identity.sourceIp $context.identity.caller $context.identity.user [$context.requestTime]\"$context.httpMethod $context.resourcePath $context.protocol\" $context.status $context.responseLength $context.requestId $context.extendedRequestId"
+        },
+        "MethodSettings": [
+          {
+            "LoggingLevel": "INFO",
+            "MetricsEnabled": true,
+            "DataTraceEnabled": true,
+            "ResourcePath": "/*",
+            "HttpMethod": "*",
+            "ThrottlingBurstLimit": 100,
+            "ThrottlingRateLimit": 50
+          }
+        ],
+        "Auth": {
+          "DefaultAuthorizer": "CognitoAuthorizer",
+          "AddDefaultAuthorizerToCorsPreflight": false,
+          "ResourcePolicy": {
+            "CustomStatements": [
+              {
+                "Effect": "Allow",
+                "Action": "execute-api:Invoke",
+                "Resource": "execute-api:/*",
+                "Principal": "*",
+                "Condition": {
+                  "StringEquals": {
+                    "aws:SourceVpce": {
+                      "Ref": "APIGWVpcEndpointId"
+                    }
+                  }
+                }
+              },
+              {
+                "Effect": "Deny",
+                "Action": "execute-api:Invoke",
+                "Resource": "execute-api:/*",
+                "Principal": "*",
+                "Condition": {
+                  "StringNotEquals": {
+                    "aws:SourceVpce": {
+                      "Ref": "APIGWVpcEndpointId"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "Authorizers": {
+            "CognitoAuthorizer": {
+              "UserPoolArn": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:aws:cognito-idp:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":userpool/",
+                    {
+                      "Fn::ImportValue": "nexusUserPoolId"
+                    }
+                  ]
+                ]
+              },
+              "Identity": {
+                "Header": "Authorization"
+              }
+            }
+          }
+        },
+        "GatewayResponses": {
+          "UNAUTHORIZED": {
+            "StatusCode": "401",
+            "ResponseParameters": {
+              "Headers": {
+                "Access-Control-Allow-Origin": "'*'",
+                "Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+                "Access-Control-Allow-Methods": "'OPTIONS,POST,GET'"
+              }
+            },
+            "ResponseTemplates": {
+              "application/json": "{\"message\": \"Unauthorized access\"}"
+            }
+          }
+        },
+        "EndpointConfiguration": {
+          "Type": "PRIVATE",
+          "VpcEndpointIds": [
+            {
+              "Ref": "APIGWVpcEndpointId"
+            }
+          ]
+        }
+      }
+    },
+    "qarApiGatewayLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/apigw/${qarApiGateway}-runtime"
+        },
+        "RetentionInDays": 90
+      }
+    },
+    "qarApiHighRequestRateAlarm": {
+      "Condition": "prodAccount",
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "High nexus-API request rate warning",
+        "Namespace": "AWS/ApiGateway",
+        "MetricName": "Count",
+        "Dimensions": [
+          {
+            "Name": "ApiName",
+            "Value": "qar-api-gateway"
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 2000,
+        "ComparisonOperator": "GreaterThanThreshold",
+        "AlarmActions": [
+          {
+            "Fn::ImportValue": "qarApiAlertsTopicArn"
+          }
+        ]
+      }
+    },
+    "qarFrontendBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": {
+          "Fn::Sub": "qar-frontend-${AWS::AccountId}-${AWS::Region}"
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerPreferred"
+            }
+          ]
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "LoggingConfiguration": {
+          "DestinationBucketName": {
+            "Fn::Sub": "s3-access-logs-${AWS::AccountId}-${AWS::Region}"
+          },
+          "LogFilePrefix": "vbsp/qar-frontend-vbc/",
+          "TargetObjectKeyFormat": {
+            "PartitionedPrefix": {
+              "PartitionDateSource": "DeliveryTime"
+            }
+          }
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        }
+      }
+    },
+    "qarFrontendBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "qarFrontendBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:GetObject"
+              ],
+              "Resource": [
+                {
+                  "Fn::GetAtt": "qarFrontendBucket.Arn"
+                },
+                {
+                  "Fn::Sub": "${qarFrontendBucket.Arn}/*"
+                }
+              ],
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com"
+              },
+              "Condition": {
+                "ArnEquals": {
+                  "AWS:SourceArn": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${qarCloudFrontDistribution}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "Effect": "Deny",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": "qarFrontendBucket.Arn"
+                },
+                {
+                  "Fn::Sub": "${qarFrontendBucket.Arn}/*"
+                }
+              ],
+              "Principal": "*",
+              "Condition": {
+                "ArnNotLike": {
+                  "aws:PrincipalArn": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/nasco-admin/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/nasco/nasco-oidc-builder"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_ops_*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_builder_*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AWSAdministratorAccess_*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/access-analyzer.amazonaws.com/AWSServiceRoleForAccessAnalyzer"
+                    }
+                  ]
+                },
+                "StringNotEquals": {
+                  "aws:SourceArn": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${qarCloudFrontDistribution}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": "qarFrontendBucket.Arn"
+                },
+                {
+                  "Fn::Sub": "${qarFrontendBucket.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "qarFrontendBucketName": {
+      "Value": {
+        "Ref": "qarFrontendBucket"
+      },
+      "Export": {
+        "Name": "qarFrontendBucketName"
+      }
+    },
+    "cloudEnvironmentOutput": {
+      "Value": {
+        "Fn::FindInMap": [
+          "configuration",
+          {
+            "Ref": "AWS::AccountId"
+          },
+          "cloudEnvironment"
+        ]
+      },
+      "Export": {
+        "Name": "cloudEnvironment"
+      }
+    },
+    "qarCloudFrontDistributionId": {
+      "Value": {
+        "Ref": "qarCloudFrontDistribution"
+      },
+      "Export": {
+        "Name": "qarCloudFrontDistributionId"
+      }
+    },
+    "SubDomain": {
+      "Value": {
+        "Ref": "SubDomain"
+      },
+      "Export": {
+        "Name": "SubDomain"
+      }
+    },
+    "qarCloudFrontDistributionArn": {
+      "Value": {
+        "Fn::Sub": "arn:aws:cloudfront::${AWS::AccountId}:distribution/${qarCloudFrontDistribution}"
+      },
+      "Export": {
+        "Name": "qarCloudFrontDistributionArn"
+      }
+    },
+    "qarNascoDomain": {
+      "Value": {
+        "Ref": "NascoDomain"
+      },
+      "Export": {
+        "Name": "qarNascoDomain"
+      }
+    },
+    "qarApiProxyUrl": {
+      "Value": {
+        "Fn::Sub": "https://${qarApiSubDomain}-proxy.${NascoDomain}"
+      },
+      "Export": {
+        "Name": "qarApiProxyUrl"
+      }
+    },
+    "qarS3OriginAccessControlId": {
+      "Value": {
+        "Ref": "qarS3OriginAccessControl"
+      },
+      "Export": {
+        "Name": "qarS3OriginAccessControlId"
+      }
+    },
+    "qarApiCloudFrontDistributionArn": {
+      "Value": {
+        "Fn::Sub": "arn:aws:cloudfront::${AWS::AccountId}:distribution/${qarApiCloudFrontDistribution}"
+      },
+      "Export": {
+        "Name": "qarApiCloudFrontDistributionArn"
+      }
+    }
+  }
+}

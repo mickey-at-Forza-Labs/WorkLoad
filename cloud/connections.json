@@ -1,0 +1,151 @@
+{
+    "adminRoles": [
+        {
+            "description": "integrative role to admin policy",
+            "resourceType": "DYNAMO",
+            "resource": "*",
+            "action": "dynamodb:*",
+            "roles": [
+                {
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/nasco-admin/*"
+                },
+                {
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/nasco/nasco-oidc-builder"
+                },
+                {
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_ops_*"
+                },
+                {
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_builder_*"
+                },
+                {
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AWSAdministratorAccess_*"
+                },
+                {
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/access-analyzer.amazonaws.com/AWSServiceRoleForAccessAnalyzer"
+                },
+                {
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/nasco-nexus-auth-role"
+                },
+                {
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/nasco-nexus-internal-api-role"
+                }
+            ],
+            "NotAction": "dynamodb:*",
+            "effect": "Deny",
+            "condition": "ArnNotLike"
+        }
+    ],
+    "accessTypes": [
+        {
+            "accessName": "full",
+            "resourceType": "REDSHIFT",
+            "effect": "Allow",
+            "action": [
+                "redshift-data:ListSchemas",
+                "redshift-data:BatchExecuteStatement",
+                "redshift-data:DescribeStatement",
+                "redshift-data:ExecuteStatement",
+                "redshift-data:GetStatementResult",
+                "redshift-data:ListStatements",
+                "redshift-data:ListTables",
+                "redshift-data:DescribeTable",
+                "redshift-serverless:GetCredentials"
+            ]
+        },
+        {
+            "accessName": "full",
+            "resourceType": "BUCKETS",
+            "effect": "Allow",
+            "action": [
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:PutObjectAcl"
+            ]
+        },
+        {
+            "accessName": "full",
+            "resourceType": "COGNITO",
+            "effect": "Allow",
+            "action": [
+                "cognito-idp:GetUser",
+                "cognito-idp:ListUsers",
+                "cognito-idp:AdminGetUser",
+                "cognito-idp:AdminUpdateUserAttributes",
+                "cognito-idp:AdminDeleteUser",
+                "cognito-idp:AdminCreateUser"
+            ]
+        },
+        {
+            "accessName": "full",
+            "resourceType": "DYNAMO",
+            "effect": "Allow",
+            "action": [
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:PartiQLSelect",
+                "dynamodb:PutItem",
+                "dynamodb:DeleteItem"
+            ]
+        },
+        {
+            "accessName": "full",
+            "resourceType": "AURORA",
+            "effect": "Allow",
+            "action": [
+                "rds-data:ExecuteStatement",
+                "rds-data:BatchExecuteStatement",
+                "rds-data:BeginTransaction",
+                "rds-data:CommitTransaction",
+                "rds-data:RollbackTransaction",
+                "secretsmanager:GetSecretValue",
+                "kms:Decrypt"
+            ]
+        }
+    ],
+    "roles": [
+        {
+            "connectionName": "all lambdas",
+            "description": "all lambdas are connected to those role",
+            "role": "nasco-qar-lambdas-executor",
+            "roleCreations": true,
+            "managedPolicyArns": [
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+            ],
+            "lambdas": "*",
+            "connections": [
+                {
+                    "resourceType": "DYNAMO",
+                    "resources": "*",
+                    "accessType": "full"
+                },
+                {
+                    "resourceType": "BUCKETS",
+                    "resources": "*",
+                    "accessType": "full"
+                },
+                {
+                    "resourceType": "REDSHIFT",
+                    "resources": "*",
+                    "accessType": "full"
+                },
+                {
+                    "resourceType": "COGNITO",
+                    "resources": "*",
+                    "accessType": "full"
+                },
+                {
+                    "resourceType": "AURORA",
+                    "resources": "*",
+                    "accessType": "full"
+                }
+            ]
+        }
+    ],
+    "configurations": {
+        "resourcesPolicyMethod": "DenyPolicy",
+        "rolePolicyMethod": "StandardPolicy"
+    }
+}

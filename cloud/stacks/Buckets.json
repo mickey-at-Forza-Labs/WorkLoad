@@ -1,0 +1,132 @@
+{
+    "name": "Buckets",
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Transform": "AWS::Serverless-2016-10-31",
+    "Description": "Quality and Risk Frontend Template",
+    "Conditions": {},
+    "Mappings": {},
+    "Parameters": {},
+    "Injections": [
+        {
+            "injectionType": "bucket",
+            "baseTemplate": {
+                "${{resourceName}}": {
+                    "Type": "AWS::S3::Bucket",
+                    "Properties": {
+                        "BucketName": {
+                            "Fn::Sub": "${{bucketName}}-${AWS::AccountId}-${AWS::Region}"
+                        },
+                        "CorsConfiguration": {
+                            "CorsRules": [
+                                {
+                                    "AllowedHeaders": [
+                                        "*"
+                                    ],
+                                    "AllowedMethods": [
+                                        "PUT",
+                                        "GET"
+                                    ],
+                                    "AllowedOrigins": [
+                                        "*"
+                                    ],
+                                    "ExposedHeaders": [],
+                                    "MaxAge": 3000
+                                }
+                            ]
+                        },
+                        "BucketEncryption": {
+                            "ServerSideEncryptionConfiguration": [
+                                {
+                                    "ServerSideEncryptionByDefault": {
+                                        "SSEAlgorithm": "AES256"
+                                    }
+                                }
+                            ]
+                        },
+                        "LoggingConfiguration": {
+                            "DestinationBucketName": {
+                                "Fn::Sub": "s3-access-logs-${AWS::AccountId}-${AWS::Region}"
+                            },
+                            "LogFilePrefix": "vbsp/${{bucketName}}/",
+                            "TargetObjectKeyFormat": {
+                                "PartitionedPrefix": {
+                                    "PartitionDateSource": "DeliveryTime"
+                                }
+                            }
+                        }
+                    }
+                },
+                "${{resourceName}}Policy": {
+                    "Type": "AWS::S3::BucketPolicy",
+                    "Properties": {
+                        "Bucket": {
+                            "Ref": "${{resourceName}}"
+                        },
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Deny",
+                                    "Action": "s3:*",
+                                    "Resource": [
+                                        {
+                                            "Fn::GetAtt": "${{resourceName}}.Arn"
+                                        },
+                                        {
+                                            "Fn::Sub": "${${{resourceName}}.Arn}/*"
+                                        }
+                                    ],
+                                    "Principal": "*",
+                                    "Condition": {
+                                        "ArnNotLike": {
+                                            "aws:PrincipalArn": [
+                                                {
+                                                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/nasco-admin/*"
+                                                },
+                                                {
+                                                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/nasco/nasco-oidc-builder"
+                                                },
+                                                {
+                                                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_ops_*"
+                                                },
+                                                {
+                                                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_builder_*"
+                                                },
+                                                {
+                                                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AWSAdministratorAccess_*"
+                                                },
+                                                {
+                                                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/access-analyzer.amazonaws.com/AWSServiceRoleForAccessAnalyzer"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    "Effect": "Deny",
+                                    "Action": "s3:*",
+                                    "Resource": [
+                                        {
+                                            "Fn::GetAtt": "${{resourceName}}.Arn"
+                                        },
+                                        {
+                                            "Fn::Sub": "${${{resourceName}}.Arn}/*"
+                                        }
+                                    ],
+                                    "Principal": "*",
+                                    "Condition": {
+                                        "Bool": {
+                                            "aws:SecureTransport": "false"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "Resources": {},
+    "Outputs": {}
+}

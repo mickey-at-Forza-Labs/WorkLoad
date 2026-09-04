@@ -1,0 +1,523 @@
+{
+  "name": "POLP",
+  "description": "Provvisory All the requirements for the principle of least privilege. Generated from review findings across multiple stacks, adapted to run against a single CloudFormation template.",
+  "stack": "*",
+  "rules": [
+    {
+      "name": "S3 bucket naming prefix",
+      "resource": "AWS::S3::Bucket",
+      "actions": [
+        {
+          "when": {
+            "property": "BucketName",
+            "operator": "not starts with any of",
+            "value": [
+              "qar",
+              "nexus"
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "POLP / Security: Bucket does not respect the required naming prefix rule. S3 bucket names should start with one of the approved prefixes: qar or nexus."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Security Group name must match Redshift or Aurora context",
+      "resource": "AWS::EC2::SecurityGroup",
+      "actions": [
+        {
+          "when": {
+            "all": [
+              {
+                "property": "resourceName",
+                "operator": "contains",
+                "value": "Redshift"
+              },
+              {
+                "property": "GroupDescription",
+                "operator": "not contains",
+                "value": "Redshift"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Security Groups used for Redshift must be explicitly described as Redshift Security Groups. If the Security Group logical name contains 'Redshift', the GroupDescription must also contain 'Redshift'. This avoids piggybacking and makes context boundaries clear."
+            }
+          }
+        },
+        {
+          "when": {
+            "all": [
+              {
+                "property": "resourceName",
+                "operator": "contains",
+                "value": "Aurora"
+              },
+              {
+                "property": "GroupDescription",
+                "operator": "not contains",
+                "value": "Aurora"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Security Groups used for Aurora must be explicitly described as Aurora Security Groups. If the Security Group logical name contains 'Aurora', the GroupDescription must also contain 'Aurora'. This avoids piggybacking and makes context boundaries clear."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Security Groups must not allow unrestricted all outbound traffic",
+      "resource": "AWS::EC2::SecurityGroup",
+      "actions": [
+        {
+          "when": {
+            "all": [
+              {
+                "property": "SecurityGroupEgress",
+                "operator": "contains",
+                "value": "0.0.0.0/0"
+              },
+              {
+                "property": "SecurityGroupEgress",
+                "operator": "contains",
+                "value": "IpProtocol"
+              },
+              {
+                "property": "SecurityGroupEgress",
+                "operator": "contains",
+                "value": "-1"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Security Group outbound rule is too wide. Security Groups must follow least privilege on both inbound and outbound rules. Replace 0.0.0.0/0 with the specific CIDRs or Security Group IDs the resource actually needs to reach. All outbound traffic with IpProtocol -1 to 0.0.0.0/0 is not allowed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Standalone Security Group egress must not allow unrestricted all traffic",
+      "resource": "AWS::EC2::SecurityGroupEgress",
+      "actions": [
+        {
+          "when": {
+            "all": [
+              {
+                "property": "CidrIp",
+                "operator": "contains",
+                "value": "0.0.0.0/0"
+              },
+              {
+                "property": "IpProtocol",
+                "operator": "contains",
+                "value": "-1"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Standalone Security Group egress rule allows all outbound traffic to 0.0.0.0/0. Limit outbound traffic to only the required protocol, port, and destination CIDRs or Security Group IDs."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lambda execution roles must not be shared across Lambda functions",
+      "resource": "AWS::Lambda::Function",
+      "actions": [
+        {
+          "when": {
+            "property": "Role",
+            "operator": "is shared",
+            "value": ""
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Lambda execution roles must not be shared across services or contexts. Each Lambda function should have a dedicated execution role with only the actions and target resources it requires. Shared roles make Least Privilege impossible to maintain."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Known shared Nexus Lambda roles must not be used as Lambda execution roles",
+      "resource": "AWS::Lambda::Function",
+      "actions": [
+        {
+          "when": {
+            "any": [
+              {
+                "property": "Role",
+                "operator": "contains",
+                "value": "nasconexusstoragemanagerrole"
+              },
+              {
+                "property": "Role",
+                "operator": "contains",
+                "value": "nasconexuschangelogsrole"
+              },
+              {
+                "property": "Role",
+                "operator": "contains",
+                "value": "nasconexusquerystudiorole"
+              },
+              {
+                "property": "Role",
+                "operator": "contains",
+                "value": "nasconexusexternalapirole"
+              },
+              {
+                "property": "Role",
+                "operator": "contains",
+                "value": "nasconexusinternalapirole"
+              },
+              {
+                "property": "Role",
+                "operator": "contains",
+                "value": "nasco-nexus-internal-api-role"
+              },
+              {
+                "property": "Role",
+                "operator": "contains",
+                "value": "nasco-nexus-storage-manager-role"
+              },
+              {
+                "property": "Role",
+                "operator": "contains",
+                "value": "nasco-nexus-external-api-role"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: This Lambda function uses a known shared Nexus execution role. Review and create dedicated roles so Lambda functions only have the permissions required for the tables, buckets, databases, and services they need to access."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lambda functions must have CloudWatch error alarms",
+      "resource": "AWS::Lambda::Function",
+      "actions": [
+        {
+          "when": {
+            "property": "AWS::CloudWatch::Alarm",
+            "operator": "not references resource",
+            "value": "AWS/Lambda:Errors:FunctionName:self"
+          },
+          "then": {
+            "warning": {
+              "message": "HIGH / Operations: CloudWatch monitoring of Lambda functions is not configured. Each Lambda function should have at least one CloudWatch alarm monitoring key metrics, such as the Errors metric. This is vital for detecting application problems. When a problem occurs, alarms can send an email via SNS or trigger other automation."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S3 bucket policies must not grant access to broad shared Nexus roles",
+      "resource": "AWS::S3::BucketPolicy",
+      "actions": [
+        {
+          "when": {
+            "any": [
+              {
+                "property": "PolicyDocument",
+                "operator": "contains",
+                "value": "nasco-nexus-internal-api-role"
+              },
+              {
+                "property": "PolicyDocument",
+                "operator": "contains",
+                "value": "nasco-nexus-storage-manager-role"
+              },
+              {
+                "property": "PolicyDocument",
+                "operator": "contains",
+                "value": "nasco-nexus-external-api-role"
+              },
+              {
+                "property": "PolicyDocument",
+                "operator": "contains",
+                "value": "nasconexusinternalapirole"
+              },
+              {
+                "property": "PolicyDocument",
+                "operator": "contains",
+                "value": "nasconexusstoragemanagerrole"
+              },
+              {
+                "property": "PolicyDocument",
+                "operator": "contains",
+                "value": "nasconexusexternalapirole"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Bucket policy grants access to one or more broad/shared Nexus IAM roles. Review the permissions needed by each Lambda or other resource and allow only the necessary access to this specific bucket. Bucket resource policies should allow access only to IAM roles assigned to resources that need this bucket."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "DynamoDB resource policies must not grant access to broad shared Nexus roles",
+      "resource": "AWS::DynamoDB::Table",
+      "actions": [
+        {
+          "when": {
+            "any": [
+              {
+                "property": "ResourcePolicy.PolicyDocument",
+                "operator": "contains",
+                "value": "nasco-nexus-internal-api-role"
+              },
+              {
+                "property": "ResourcePolicy.PolicyDocument",
+                "operator": "contains",
+                "value": "nasco-nexus-storage-manager-role"
+              },
+              {
+                "property": "ResourcePolicy.PolicyDocument",
+                "operator": "contains",
+                "value": "nasco-nexus-external-api-role"
+              },
+              {
+                "property": "ResourcePolicy.PolicyDocument",
+                "operator": "contains",
+                "value": "nasconexusinternalapirole"
+              },
+              {
+                "property": "ResourcePolicy.PolicyDocument",
+                "operator": "contains",
+                "value": "nasconexusstoragemanagerrole"
+              },
+              {
+                "property": "ResourcePolicy.PolicyDocument",
+                "operator": "contains",
+                "value": "nasconexusexternalapirole"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: DynamoDB table resource policy grants access to one or more broad/shared Nexus IAM roles. Resource policies are where Least Privilege is enforced. Review the permissions needed by each Lambda or other resource and allow only the necessary access to this specific table."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "IAM role AssumeRolePolicyDocument should include conditions for Redshift roles",
+      "resource": "AWS::IAM::Role",
+      "actions": [
+        {
+          "when": {
+            "all": [
+              {
+                "property": "resourceName",
+                "operator": "contains",
+                "value": "Redshift"
+              },
+              {
+                "property": "AssumeRolePolicyDocument",
+                "operator": "not contains",
+                "value": "Condition"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Redshift IAM Role AssumeRolePolicyDocument does not define conditions. Add the required conditions to the trust policy so the role cannot be assumed outside the intended context."
+            }
+          }
+        },
+        {
+          "when": {
+            "all": [
+              {
+                "property": "resourceName",
+                "operator": "contains",
+                "value": "nexusNascoRedshiftRole"
+              },
+              {
+                "property": "AssumeRolePolicyDocument",
+                "operator": "not contains",
+                "value": "Condition"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: nexusNascoRedshiftRole is missing conditions in AssumeRolePolicyDocument. The previous review noted that conditions were removed temporarily; this must be fixed before approval."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Redshift Serverless Workgroup must explicitly set SecurityGroupIds",
+      "resource": "AWS::RedshiftServerless::Workgroup",
+      "actions": [
+        {
+          "when": {
+            "property": "SecurityGroupIds",
+            "operator": "not exists",
+            "value": ""
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Redshift Serverless Workgroup does not specify SecurityGroupIds and may implicitly attach the VPC default security group. Create an explicit Redshift Security Group and reference it in SecurityGroupIds, allowing TCP port 5439 only from known client Security Groups or CIDRs."
+            }
+          }
+        },
+        {
+          "when": {
+            "property": "SecurityGroupIds",
+            "operator": "is empty",
+            "value": ""
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Redshift Serverless Workgroup SecurityGroupIds is empty. Reference an explicit Redshift Security Group that allows TCP port 5439 only from known client Security Groups or CIDRs."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Redshift ingress must not allow public CIDR on port 5439",
+      "resource": "AWS::EC2::SecurityGroupIngress",
+      "actions": [
+        {
+          "when": {
+            "all": [
+              {
+                "property": "CidrIp",
+                "operator": "contains",
+                "value": "0.0.0.0/0"
+              },
+              {
+                "property": "FromPort",
+                "operator": "contains",
+                "value": "5439"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Redshift ingress from 0.0.0.0/0 on port 5439 is not allowed. Only traffic from known client Security Groups or approved CIDRs is allowed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Embedded Redshift Security Group ingress must not allow public CIDR on port 5439",
+      "resource": "AWS::EC2::SecurityGroup",
+      "actions": [
+        {
+          "when": {
+            "all": [
+              {
+                "property": "resourceName",
+                "operator": "contains",
+                "value": "Redshift"
+              },
+              {
+                "property": "SecurityGroupIngress",
+                "operator": "contains",
+                "value": "0.0.0.0/0"
+              },
+              {
+                "property": "SecurityGroupIngress",
+                "operator": "contains",
+                "value": "5439"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "CRITICAL / Security / POLP: Embedded Redshift Security Group ingress allows 0.0.0.0/0 on port 5439. Only traffic from known client Security Groups or approved CIDRs is allowed."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Redshift Serverless IAM policy must be scoped to the Nexus namespace",
+      "resource": "AWS::IAM::Policy",
+      "actions": [
+        {
+          "when": {
+            "all": [
+              {
+                "property": "PolicyDocument",
+                "operator": "contains",
+                "value": "redshift-serverless"
+              },
+              {
+                "property": "PolicyDocument",
+                "operator": "contains",
+                "value": "*"
+              },
+              {
+                "property": "PolicyDocument",
+                "operator": "not contains",
+                "value": "namespace/${nexusRedshiftNamespace}"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "HIGH / Security / POLP: IAM policy grants permissions too broadly to Redshift Serverless resources. Scope the policy Resource to arn:aws:redshift-serverless:${AWS::Region}:${AWS::AccountId}:namespace/${nexusRedshiftNamespace}/* so access is limited to the Nexus Redshift namespace created by the template."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Managed Redshift Serverless IAM policy must be scoped to the Nexus namespace",
+      "resource": "AWS::IAM::ManagedPolicy",
+      "actions": [
+        {
+          "when": {
+            "all": [
+              {
+                "property": "PolicyDocument",
+                "operator": "contains",
+                "value": "redshift-serverless"
+              },
+              {
+                "property": "PolicyDocument",
+                "operator": "contains",
+                "value": "*"
+              },
+              {
+                "property": "PolicyDocument",
+                "operator": "not contains",
+                "value": "namespace/${nexusRedshiftNamespace}"
+              }
+            ]
+          },
+          "then": {
+            "error": {
+              "message": "HIGH / Security / POLP: Managed IAM policy grants permissions too broadly to Redshift Serverless resources. Scope the policy Resource to arn:aws:redshift-serverless:${AWS::Region}:${AWS::AccountId}:namespace/${nexusRedshiftNamespace}/* so access is limited to the Nexus Redshift namespace created by the template."
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

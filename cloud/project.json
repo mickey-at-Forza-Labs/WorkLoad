@@ -1,0 +1,28 @@
+{
+  "stacks": ["stacks"],
+  "templates": ["templates"],
+  "constants" : ["constants"],
+  "requirements": ["requirements"]
+}
+
+
+{
+
+}
+
+eyJraWQiOiJYaHg0R0o5S0lHcmZxTW5LclFLbV92b295R0dNSVZrM0drNWZ4QXlkaXg0IiwiYWxnIjoiUlMyNTYifQ.eyJ2ZXIiOjEsImp0aSI6IkFULlhVWVBxcGtEYjItMmRTT0lncGJ2clZRSVh5T01qU0xNZ0hhY3picFBSLU0iLCJpc3MiOiJodHRwczovL2IyYy1hdXRoLXFhLmJjYnNtLmNvbS9vYXV0aDIvYXVzOHp2MWMzeW5QUGozRXoyOTciLCJhdWQiOiJhcGk6Ly9mb3J1bXNlbnRyeSIsImlhdCI6MTc4NzA0NzI3MywiZXhwIjoxNzg3MDUwODczLCJjaWQiOiIwb2ExM2p5bDh0Y1BDaWNpTDI5OCIsInNjcCI6WyJ1cm46bmFzY28taGViLXYxOmdldDpkZWx0YXNoYXJlIl0sInN1YiI6IjBvYTEzanlsOHRjUENpY2lMMjk4In0.f5GhYoFAID30HYR_qxweK4zLX1YeHu7s6KQLmfPsfWnB61NpQBLmOuYaRqgy4lx3TVjugCYSCYd_yo8WbGY5W3j0orzZqKpeyQ4xkonIWIO6iQl0LeotR6YQWC2aMRh-mYuKsU8sMJ7BqIk9pR7RoRlmVqeh1urf77EFvM0AmR201f2GC3zNdbmRT-4ZQlQ9Cufmm7OBbb3VWt9n3VjOzW6BpKBlgOTdV997oFQN8zalZrmy-WLwOxmEghmqdt8JbD2fDF5IbNAHnTTjaKV8eXk6VFlQpEnyJEupxXUJU5r5uG78MgbM5Io6iGAAJJEb5mNBZ3nbe3xZJiNhQ55eHQ
+
+curl -X POST "https://nvirginia.cloud.databricks.com/api/2.0/delta-sharing/metastores/868ba914-04d5-4617-ab54-511ca1c2abb8/recipients/e8ba181f-5645-4da1-b7fd-0a375f4fd7ed/shares/ds_nasco/schemas/dshare_nasco/tables/heb_cms_reference_ra_model_mapping_diagnosis_code_hcc_vw/query" \
+  -H "Authorization: Bearer eyJraWQiOiJYaHg0R0o5S0lHcmZxTW5LclFLbV92b295R0dNSVZrM0drNWZ4QXlkaXg0IiwiYWxnIjoiUlMyNTYifQ.eyJ2ZXIiOjEsImp0aSI6IkFULkhlRUlvNnluNTFwWk16eXJvd3pyRkJaN0xyc3VtcUFFdktxOWd1a1dtRG8iLCJpc3MiOiJodHRwczovL2IyYy1hdXRoLXFhLmJjYnNtLmNvbS9vYXV0aDIvYXVzOHp2MWMzeW5QUGozRXoyOTciLCJhdWQiOiJhcGk6Ly9mb3J1bXNlbnRyeSIsImlhdCI6MTc4NzA2OTA4NSwiZXhwIjoxNzg3MDcyNjg1LCJjaWQiOiIwb2ExM2p5bDh0Y1BDaWNpTDI5OCIsInNjcCI6WyJ1cm46bmFzY28taGViLXYxOmdldDpkZWx0YXNoYXJlIl0sInN1YiI6IjBvYTEzanlsOHRjUENpY2lMMjk4In0.mWQOlPmPoSg-gMmKUK6X2WaN_Pv6OkjrsOJMlKd-7aAI79On4SpyG6XeRUN1DgNWi9sGtAqkdO2KFaJzMeKrTBpLLAFLc4gahbp7WiF1Q6Eel3CznJpK3RhCuUAfGV5CYr4J0igdlAD11CDsWgsSiGxuXAOw9wcMIy1LxZdWaqW9X8I27NAUlAeNctpkeLCa3xeo2glJ2vEwlltPjJi6N7WFJLTsXZSs_zpkHuzvywBnoYf21cJxySoqQQRDWBaHwV9n7QIXnM-qpLAbVdXwT7-6H2-Hg8rfdQK0vZySmy5ENFWuVfE1C3fzW59zDXP9zsMrLq0AyGR8ZY1smLHMsA" \
+  -H "Content-Type: application/json" \
+  -d '{
+  }'
+
+---------- TEST MY THEORY ON UPLOAD 
+curl -X POST "https://sts.amazonaws.com/" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "Action=AssumeRoleWithWebIdentity" \
+  --data-urlencode "Version=2011-06-15" \
+  --data-urlencode "RoleArn=${ROLE_ARN}" \
+  --data-urlencode "RoleSessionName=m2m-s3-test" \
+  --data-urlencode "WebIdentityToken=${JWT}"

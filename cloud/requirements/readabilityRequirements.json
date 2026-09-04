@@ -1,0 +1,56 @@
+
+   
+{
+  "name": "READABILITY",
+  "description": "All the requirements for improving the readability of the template from aws",
+  "rules": [ 
+    {
+      "name": "Template should not contain AWSTemplateFormatVersion",
+      "resource": "*",
+      "actions": [
+        {
+          "when": {
+            "property": "AWSTemplateFormatVersion",
+            "operator": "exists"
+          },
+          "then": {
+            "warning": {
+              "message":
+                "The template should not have AWSTemplateFormatVersion because it is unnecessary."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Template description",
+      "resource": "*",
+      "actions": [
+        {
+          "when": {
+            "property": "Description",
+            "operator": "start with",
+            "value": ">"
+          },
+          "then": {
+            "warning": {
+              "message":
+                "The template should not have /n"
+            }
+          }
+        },
+        {
+            "when": {
+                "property":"Description",
+                "operator":"not exists"
+            },
+            "then":{
+                "warning":{
+                    "message":"LOW: The template should have a description"
+                }
+            }
+        }
+      ]
+    }
+  ]
+}

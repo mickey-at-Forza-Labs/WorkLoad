@@ -1,0 +1,45 @@
+{
+  "name": "qar",
+  "description": "Configuration Used for QAR stack ",
+  "stacks": [
+    {
+      "name": "iam",
+      "samConfig": "./apps/dev_ops/src/samconfig.toml",
+      "variables": [],
+      "samConfigurationVariables": []
+    },
+    {
+      "name": "dynamo",
+      "samConfig": "./apps/dev_ops/src/samconfig.toml",
+      "variables": [],
+      "samConfigurationVariables": []
+    },
+    {
+      "name": "lambda",
+      "samConfig": "./apps/dev_ops/src/samconfig.toml",
+      "variables": [],
+      "samConfigurationVariables": []
+    },
+        {
+            "name": "DynamoIntegration",
+            "samConfig": "./dev_ops/cloud/basicSamConf/samconfig.toml",
+            "variables": [],
+            "samConfigurationVariables": [{"name":"${{stack_name}}", "value":"DynamoIntegration"} ]
+        },
+    {
+      "name": "frontend",
+      "samConfig": "./apps/dev_ops/src/samconfig.toml",
+      "variables": [
+                    { "name": "${{frontendBucketName}}", "value": "${{awsInputs.bucketSuffixName.qarFrontend}}"},
+                    { "name": "${{testAccountId}}", "value": "${{testAccountId}}" },
+                    { "name": "${{devAccountId}}", "value": "${{devAccountId}}" },
+                    {"name":"${{uatAccountId}}", "value":"${{uatAccountId}}"},
+                    {"name":"${{demouatAccountId}}", "value":"${{demouatAccountId}}"}
+      ],
+      "samConfigurationVariables": []
+    }
+  ],
+  "requirements" : ["POLP", "READABILITY"],
+  "multipleDeployment":false,
+  "connections": "./apps/dev_ops/cloud/connections.json"
+}
